@@ -8,7 +8,6 @@ import {
   LIBRARY_GROUPS,
   LeadList,
   LibraryKey,
-  PHASES,
   SectionDef,
   campaignIssues,
   campaignWarnings,
@@ -70,7 +69,6 @@ export default function CampaignConfig() {
   const [active, setActive] = useState('basics');
   const [serverErrors, setServerErrors] = useState<Record<string, string>>({});
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
-  const mainRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     if (!data) return;
@@ -421,7 +419,7 @@ export default function CampaignConfig() {
   });
 
   return (
-    <div className="wrap" ref={mainRef as never}>
+    <div className="wrap">
       {q ? (
         <div className="note">
           {matches} setting{matches === 1 ? '' : 's'} match &quot;{query}&quot; ·{' '}
@@ -508,5 +506,3 @@ export default function CampaignConfig() {
     </div>
   );
 }
-
-export { PHASES };

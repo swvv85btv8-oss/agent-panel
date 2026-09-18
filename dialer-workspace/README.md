@@ -15,8 +15,8 @@ migrate or import. Add `?brand=acefone-uk` to see the platform token swap.
 
 | Command | What it does |
 |---|---|
-| `npm test` | 124 unit + API tests |
-| `npm run e2e` | 38 browser checks driving the real UI against the real API |
+| `npm test` | 124 tests: 82 on the shared rules, 42 on the API |
+| `npm run e2e` | 46 browser checks driving the real UI against the real API |
 | `npm run typecheck` | all three packages |
 | `npm run build` | shared → server → client |
 
@@ -86,6 +86,28 @@ campaigns already claim — passed in as context.
 | `essentials.ts` | essentials mode, dirty tracking, section summaries |
 | `policy.ts` | the six open product decisions, as named switches |
 | `tokens.ts` | design tokens and the three brand ramps |
+
+### Library references are stored as ids
+
+The brief names these fields `dispositionSetId`, `surveyId`, `pauseCodeSetId` and so on.
+The **values are ids**, as it specifies — but the field *names* keep the prototype's
+spelling, because those names are the form's identity and appear throughout the templates,
+defaults and seed data. The mapping is:
+
+| Field id | Points at |
+|---|---|
+| `dispositionList` | a disposition set |
+| `csatSurvey` | a survey |
+| `pauseCodeList` | a pause code set |
+| `skillList` | a skill list |
+| `dndList` | a DND list |
+| `agentScript` | an agent script |
+| `quickTransfer` | a transfer directory |
+| `leadLists[]` | lead lists (max 3) |
+
+Templates are authored by hand and so name library objects by **name**; the server
+resolves those to ids when it creates the campaign, which is the only place a name is ever
+accepted.
 
 **Adding a setting is a data change in `campaign-fields.ts` and nothing else.** No new JSX.
 A test asserts the inventory counts so an accidental deletion cannot pass silently.

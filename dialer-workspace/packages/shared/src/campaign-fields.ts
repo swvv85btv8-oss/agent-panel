@@ -1,7 +1,6 @@
 import {
   CampaignValues,
   DialMethod,
-  FieldDef,
   LibraryGroup,
   PacingDef,
   PhaseDef,

@@ -322,7 +322,6 @@ export default function LeadListRecords() {
 function StructureDrawer({ list, onClose }: { list: ListDetail; onClose: () => void }) {
   const [fixed, setFixed] = useState<FixedColumn[]>(list.fixed);
   const [custom, setCustom] = useState<CustomColumn[]>(list.custom);
-  const [warning, setWarning] = useState<string | null>(null);
   const room = MAX_CUSTOM - custom.length;
 
   const save = async () => {
@@ -495,7 +494,6 @@ function StructureDrawer({ list, onClose }: { list: ListDetail; onClose: () => v
       <div className="help" style={{ marginTop: 8 }}>
         Hidden columns are excluded from the template and never reach the agent panel.
       </div>
-      {warning ? <div className="warnbox">{warning}</div> : null}
     </Drawer>
   );
 }

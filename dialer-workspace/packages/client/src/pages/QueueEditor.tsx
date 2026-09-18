@@ -34,7 +34,7 @@ export default function QueueEditor() {
   const nav = useNavigate();
   const { setCrumb, setRail, setFooter } = useShell();
 
-  const { data, reload } = useAsync<CampaignResponse>(() => api.get(`/campaigns/${id}`), [id]);
+  const { data } = useAsync<CampaignResponse>(() => api.get(`/campaigns/${id}`), [id]);
   const [queue, setQueue] = useState<InboundQueue | null>(null);
   const [showIssues, setShowIssues] = useState(false);
   const [conflict, setConflict] = useState<string | null>(null);
