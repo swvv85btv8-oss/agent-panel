@@ -2,15 +2,23 @@
   "name": "dialer-workspace",
   "private": true,
   "version": "0.1.0",
-  "description": "Acefone / Smartflo dialer — campaign configuration workspace",
-  "workspaces": ["packages/shared", "packages/server", "packages/client"],
+  "description": "Acefone / Smartflo dialer \u2014 campaign configuration workspace",
+  "workspaces": [
+    "packages/shared",
+    "packages/server",
+    "packages/client"
+  ],
   "scripts": {
     "build": "npm run build -w @dialer/shared && npm run build -w @dialer/server && npm run build -w @dialer/client",
     "dev": "npm run dev -w @dialer/server & npm run dev -w @dialer/client",
     "dev:server": "npm run dev -w @dialer/server",
     "dev:client": "npm run dev -w @dialer/client",
     "test": "npm run test -w @dialer/shared && npm run test -w @dialer/server",
-    "typecheck": "npm run typecheck -w @dialer/shared && npm run typecheck -w @dialer/server && npm run typecheck -w @dialer/client"
+    "typecheck": "npm run typecheck -w @dialer/shared && npm run typecheck -w @dialer/server && npm run typecheck -w @dialer/client",
+    "e2e": "node e2e/smoke.mjs && node e2e/flows.mjs"
   },
-  "devDependencies": { "typescript": "^5.5.4" }
+  "devDependencies": {
+    "playwright": "^1.63.0",
+    "typescript": "^5.5.4"
+  }
 }
