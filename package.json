@@ -1,0 +1,35 @@
+{
+  "name": "acefone-dialer-poc",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Agent-centric multi-queue blended dialer POC \u2014 backend + data model rewrite",
+  "type": "commonjs",
+  "main": "dist/index.js",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/index.js",
+    "build": "tsc -p tsconfig.json",
+    "seed": "tsx src/seed.ts",
+    "test": "tsx --test tests/*.test.ts",
+    "typecheck": "tsc -p tsconfig.check.json",
+    "infra:up": "docker compose up -d",
+    "infra:down": "docker compose down",
+    "demo:engine": "tsx scripts/demo-engine.ts"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "ioredis": "^5.4.1",
+    "mongoose": "^8.6.0",
+    "socket.io": "^4.7.5"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/node": "^22.5.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.5.4"
+  }
+}

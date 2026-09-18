@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Agent Desktop — Dialer POC</title>
+<link rel="stylesheet" href="/common.css" />
+</head>
+<body>
+<header>
+  <h1>Agent Desktop</h1>
+  <nav><a href="/agent.html">Agent</a><a href="/supervisor.html">Supervisor</a></nav>
+  <select id="agentPicker"></select>
+  <span id="toast" class="muted"></span>
+</header>
+
+<main>
+  <div class="grid2">
+    <!-- ------------------------------------------------- status + wrap-up -->
+    <section class="panel">
+      <h2>My status</h2>
+      <div class="big">
+        <span id="agentName">—</span>
+        <span id="statusBadge" class="badge">—</span>
+      </div>
+      <div id="wrapUpBox" style="display:none; margin-top:12px">
+        <div class="muted">Wrap-up ends in</div>
+        <div class="countdown"><span id="wrapUpRemaining">—</span>s</div>
+        <button id="btnReady" class="good">I'm ready</button>
+        <div class="rule" style="margin-top:8px">
+          While in wrap-up this agent is NOT a candidate for any assignment — same as break/offline.
+          If the timer runs out first, the server flips them back to available on its own.
+        </div>
+      </div>
+      <div id="statusControls" style="margin-top:12px; display:flex; gap:8px; flex-wrap:wrap">
+        <button id="btnAvailable" class="good">Available</button>
+        <button id="btnBreak">Break</button>
+        <button id="btnOffline">Offline</button>
+      </div>
+      <div class="rule" style="margin-top:10px">
+        Status controls are disabled while a call is active — one call at a time, enforced server-side.
+      </div>
+    </section>
+
+    <!-- --------------------------------------------------- active call -->
+    <section class="panel">
+      <h2>Active call</h2>
+      <div id="callBox" class="muted">No active call.</div>
+      <div id="callControls" style="margin-top:12px; display:flex; gap:8px; flex-wrap:wrap">
+        <button id="btnAccept" class="good" disabled>Accept</button>
+        <button id="btnReject" class="danger" disabled>Reject</button>
+        <button id="btnEnd" class="primary" disabled>End call</button>
+      </div>
+      <div class="rule" style="margin-top:10px">
+        Accept/Reject only light up for preview &amp; manual modes, which offer the lead before dialling.
+        Rejecting puts the lead straight back into its queue — it is never dropped.
+      </div>
+    </section>
+  </div>
+
+  <div class="grid2">
+    <!-- -------------------------------------------- the two queue scales -->
+    <section class="panel">
+      <h2>My inbound queues — checked first, always</h2>
+      <table><thead><tr><th>#</th><th>Queue</th><th>Inbound priority</th></tr></thead>
+        <tbody id="inboundQueues"></tbody></table>
+      <div class="rule" style="margin-top:8px">
+        Ranked on the INBOUND scale only. Lower number = higher priority. Ties go to the longest-waiting call.
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>My outbound queues — only if every inbound queue above is empty</h2>
+      <table><thead><tr><th>#</th><th>Campaign queue</th><th>Outbound priority</th><th>Mode</th><th>My rank</th><th></th></tr></thead>
+        <tbody id="outboundQueues"></tbody></table>
+      <div class="rule" style="margin-top:8px">
+        A SEPARATE scale that restarts at 1. An outbound priority is never compared against an inbound one.
+        Ties go to my rankOverride (lower wins), then to the campaign's due time.
+      </div>
+    </section>
+  </div>
+
+  <section class="panel">
+    <h2>What the engine decided about me</h2>
+    <div id="myFeed" class="feed"></div>
+  </section>
+</main>
+
+<script src="/socket.io/socket.io.js"></script>
+<script src="/common.js"></script>
+<script>
+let agentId = localStorage.getItem('agentId') || null;
+let state = null;
+let myQueues = null;
+
+async function loadAgents() {
+  const agents = await api.get('/api/agents');
+  el('agentPicker').innerHTML = agents
+    .map((a) => `<option value="${a.agentId}">${esc(a.name)}</option>`)
+    .join('');
+  if (!agentId || !agents.some((a) => a.agentId === agentId)) agentId = agents[0]?.agentId;
+  el('agentPicker').value = agentId;
+  localStorage.setItem('agentId', agentId);
+}
+
+async function refresh() {
+  if (!agentId) return;
+  state = await api.get('/api/agents/' + agentId);
+  myQueues = await api.get('/api/agents/' + agentId + '/my-queues');
+  render();
+}
+
+function render() {
+  if (!state) return;
+  el('agentName').textContent = state.name;
+  const badge = el('statusBadge');
+  badge.textContent = state.status;
+  badge.className = 'badge s-' + state.status;
+
+  // ---- wrap-up countdown
+  const wrapping = state.status === 'wrap_up';
+  el('wrapUpBox').style.display = wrapping ? 'block' : 'none';
+  if (wrapping) el('wrapUpRemaining').textContent = state.wrapUpRemainingSeconds ?? '—';
+
+  // ---- one-call-at-a-time: every status control is dead while a call is held
+  const hasCall = Boolean(state.activeCall);
+  const offering = Boolean(state.activeCall && state.activeCall.awaitingConfirmation);
+  ['btnAvailable', 'btnBreak', 'btnOffline'].forEach((id) => { el(id).disabled = hasCall; });
+  el('btnAccept').disabled = !offering;
+  el('btnReject').disabled = !offering;
+  el('btnEnd').disabled = !hasCall || offering;
+
+  el('callBox').innerHTML = state.activeCall
+    ? `<div class="big">${esc(state.activeCall.callerNumber || '(no number)')}</div>
+       <div class="muted">${esc(state.activeCall.direction)} · ${esc(state.activeCall.queueName || '')}
+       ${state.activeCall.dialingMode ? '· ' + esc(state.activeCall.dialingMode) : ''}</div>
+       <div class="badge ${offering ? 's-wrap_up' : 's-on_call'}" style="margin-top:6px">
+         ${offering ? 'OFFERED — awaiting your confirmation' : 'CONNECTED'}</div>`
+    : '<span class="muted">No active call.</span>';
+
+  // ---- the two separate ranked lists
+  el('inboundQueues').innerHTML = (myQueues?.inbound || [])
+    .map((q, i) => `<tr><td class="muted">${i + 1}</td><td>${esc(q.name)}</td><td>${q.priority}</td></tr>`)
+    .join('') || '<tr><td colspan="3" class="muted">none</td></tr>';
+
+  el('outboundQueues').innerHTML = (myQueues?.outbound || [])
+    .map((q, i) => `<tr>
+        <td class="muted">${i + 1}</td>
+        <td>${esc(q.name)}</td>
+        <td>${q.priority}</td>
+        <td>${esc(q.campaign?.dialingMode || '—')}</td>
+        <td>${q.rankOverride ?? '<span class="muted">unset</span>'}</td>
+        <td>${q.campaign?.dialingMode === 'manual'
+          ? `<button onclick="manualDial('${q.campaign.campaignId}')" ${hasCall || state.status !== 'available' ? 'disabled' : ''}>Dial one</button>`
+          : ''}</td>
+      </tr>`)
+    .join('') || '<tr><td colspan="6" class="muted">none</td></tr>';
+}
+
+async function act(fn) {
+  try { await fn(); await refresh(); }
+  catch (e) { toast(e.message, true); }
+}
+
+el('agentPicker').onchange = async (e) => {
+  agentId = e.target.value;
+  localStorage.setItem('agentId', agentId);
+  await refresh();
+};
+el('btnAvailable').onclick = () => act(() => api.post(`/api/agents/${agentId}/status`, { status: 'available' }));
+el('btnBreak').onclick = () => act(() => api.post(`/api/agents/${agentId}/status`, { status: 'break' }));
+el('btnOffline').onclick = () => act(() => api.post(`/api/agents/${agentId}/status`, { status: 'offline' }));
+el('btnReady').onclick = () => act(() => api.post(`/api/agents/${agentId}/end-wrap-up`));
+el('btnAccept').onclick = () => act(() => api.post(`/api/agents/${agentId}/accept`));
+el('btnReject').onclick = () => act(() => api.post(`/api/agents/${agentId}/reject`));
+el('btnEnd').onclick = () => act(() => api.post(`/api/agents/${agentId}/end-call`, { disposition: 'completed' }));
+function manualDial(campaignId) { act(() => api.post(`/api/agents/${agentId}/manual-dial`, { campaignId })); }
+
+// ------------------------------------------------------------------ live wire
+const socket = io();
+socket.on('agent:state', (s) => { if (s.agentId === agentId) refresh(); });
+socket.on('wrapup:tick', (t) => {
+  if (t.agentId !== agentId) return;
+  el('wrapUpRemaining').textContent = t.remainingSeconds;
+  if (t.remainingSeconds === 0) setTimeout(refresh, 400);
+});
+['call:assigned', 'call:offered', 'call:ended', 'call:accepted', 'call:rejected'].forEach((ev) =>
+  socket.on(ev, (p) => { if (p.agentId === agentId) refresh(); }),
+);
+socket.on('routing:decision', (d) => {
+  if (!state || d.agentName !== state.name) return;
+  const feed = el('myFeed');
+  const row = document.createElement('div');
+  row.className = 'row ' + d.candidateType;
+  row.innerHTML = `<div class="meta">${time(d.createdAt)} · ${esc(d.triggerType)} · ${esc(d.candidateType)}${d.committed ? '' : ' · not committed'}</div>
+    <div>${esc(d.reason)}</div>
+    <div class="trace">${esc((d.trace || []).join('\n'))}</div>`;
+  feed.prepend(row);
+  while (feed.childElementCount > 40) feed.lastElementChild.remove();
+});
+
+(async () => { await loadAgents(); await refresh(); setInterval(refresh, 5000); })();
+</script>
+</body>
+</html>
